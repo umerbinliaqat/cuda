@@ -122,3 +122,85 @@ int main()
 
     return 0;
 }
+
+// This program computes the sum of two vectors of length N
+// By: Nick from CoffeeBeforeArch
+
+#include <algorithm>
+#include <cassert>
+#include <iostream>
+#include <vector>
+#include <cuda_runtime.h>
+#include <device_launch_parameters.h>
+#include <stdlib.h>
+#include <math.h>
+#include <assert.h>
+#include <stdio.h>
+
+// CUDA kernel for vector addition
+// __global__ means this is called from the CPU, and runs on the GPU
+__global__ void vectorAdd(int* a, int* b, int* c, int N) {
+    // Calculate global thread ID
+    int tid = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+    // Boundary check
+    if (tid < N) c[tid] = a[tid] + b[tid];
+}
+
+// Check vector add result
+void verify_result(std::vector<int>& a, std::vector<int>& b,
+    std::vector<int>& c) {
+    for (int i = 0; i < a.size(); i++) {
+        assert(c[i] == a[i] + b[i]);
+    }
+}
+
+void matrix_init(int* a, int N) {
+    for (int i = 0; i < N; i++) {
+        a[i] = rand() % 100;
+    }
+}
+
+void error_check(int* a, int* b, int* c, int N) {
+    for (int i = 0; i < N; i++) {
+        assert(c[i] == a[i] + b[i]);
+    }
+}
+
+int main() {
+    // Array size of 2^16 (65536 elements)
+    int N = 1 << 16;
+    int *h_a, *h_b, *h_c;
+    int* d_a, * d_b, * d_c;
+    size_t bytes = sizeof(int) * N;
+
+    h_a = (int*)malloc(bytes);
+    h_b = (int*)malloc(bytes);
+    h_c = (int*)malloc(bytes);
+
+    cudaMalloc(&d_a, bytes);
+    cudaMalloc(&d_b, bytes);
+    cudaMalloc(&d_c, bytes);
+
+    matrix_init(h_a, N);
+    matrix_init(h_b, N);
+
+    cudaMemcpy(d_a, h_a, bytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b, bytes, cudaMemcpyHostToDevice);
+
+    int NUM_THREADS = 256;
+
+    int NUM_BLOCKS = (N + NUM_THREADS - 1) / NUM_THREADS;
+
+    vectorAdd << <NUM_BLOCKS, NUM_THREADS >> > (d_a, d_b, d_c, N);
+
+    cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost);
+
+    error_check(h_a, h_b, h_c, N);
+
+    printf("COMPLETED SUCCESSFULLY\n");
+
+    return 0;
+}
+
+
